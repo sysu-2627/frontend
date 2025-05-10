@@ -32,6 +32,16 @@
         </div>
         
         <div class="form-group">
+          <label>API地址</label>
+          <input type="text" v-model="baseUrl" class="text-input" placeholder="请输入API地址" />
+        </div>
+
+        <div class="form-group">
+          <label>API密钥</label>
+          <input type="password" v-model="apiKey" class="text-input" placeholder="请输入API密钥" />
+        </div>
+        
+        <div class="form-group">
           <label>评估参数配置</label>
           <div class="parameter-row">
             <span>并发度</span>
@@ -51,6 +61,9 @@
         <div class="action-buttons">
           <button class="start-btn" @click="startEvaluation" :disabled="!isFormValid || isSubmitting">
             {{ isSubmitting ? '提交中...' : '开始评估' }}
+          </button>
+          <button class="result-btn" @click="getResult" :disabled="!isResultFormValid || isGettingResult">
+            {{ isGettingResult ? '获取中...' : '获取结果' }}
           </button>
         </div>
       </div>
@@ -75,6 +88,16 @@
           </div>
         </div>
       </div>
+
+      <div class="result-card" v-if="evaluationResult">
+        <h2>评估结果</h2>
+        <pre class="result-content">{{ JSON.stringify(evaluationResult, null, 2) }}</pre>
+      </div>
+
+      <div class="error-card" v-if="errorMessage">
+        <h2>错误提示</h2>
+        <div class="error-message">{{ errorMessage }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -88,20 +111,28 @@ export default {
     return {
       selectedModel: '',
       selectedDataset: '',
+      baseUrl: '',
+      apiKey: '',
       concurrency: 1,
       maxLength: 1024,
       temperature: 0.7,
       evaluationStatus: null,
+      evaluationResult: null,
       models: [],
       datasets: [],
       isSubmitting: false,
+      isGettingResult: false,
       evaluationId: null,
-      statusInterval: null
+      statusInterval: null,
+      errorMessage: null
     };
   },
   computed: {
     isFormValid() {
       return this.selectedModel && this.selectedDataset;
+    },
+    isResultFormValid() {
+      return this.selectedModel && this.selectedDataset && this.baseUrl && this.apiKey;
     }
   },
   created() {
@@ -122,6 +153,7 @@ export default {
         this.models = await evaluationApi.getModels();
       } catch (error) {
         console.error('获取模型列表失败:', error);
+        this.errorMessage = '获取模型列表失败';
       }
     },
     async fetchDatasets() {
@@ -129,12 +161,14 @@ export default {
         this.datasets = await evaluationApi.getDatasets();
       } catch (error) {
         console.error('获取数据集列表失败:', error);
+        this.errorMessage = '获取数据集列表失败';
       }
     },
     async startEvaluation() {
       if (!this.isFormValid || this.isSubmitting) return;
       
       this.isSubmitting = true;
+      this.errorMessage = null;
       
       try {
         const params = {
@@ -166,6 +200,7 @@ export default {
         }, 2000);
       } catch (error) {
         console.error('启动评估失败:', error);
+        this.errorMessage = '启动评估失败: ' + (error.message || '未知错误');
       } finally {
         this.isSubmitting = false;
       }
@@ -178,6 +213,10 @@ export default {
         this.evaluationStatus = status;
       } catch (error) {
         console.error('获取评估状态失败:', error);
+        this.errorMessage = '获取评估状态失败';
+        if (this.statusInterval) {
+          clearInterval(this.statusInterval);
+        }
       }
     },
     getStatusText(status) {
@@ -188,6 +227,30 @@ export default {
         'failed': '失败'
       };
       return statusMap[status] || status;
+    },
+    async getResult() {
+      if (!this.isResultFormValid || this.isGettingResult) return;
+      
+      this.isGettingResult = true;
+      this.errorMessage = null;
+      this.evaluationResult = null;
+      
+      try {
+        const params = {
+          base_url: this.baseUrl,
+          api_key: this.apiKey,
+          model: this.selectedModel,
+          dataset: this.selectedDataset
+        };
+        
+        const result = await evaluationApi.getEvaluationResult(params);
+        this.evaluationResult = result;
+      } catch (error) {
+        console.error('获取评估结果失败:', error);
+        this.errorMessage = '获取评估结果失败: ' + (error.message || '未知错误');
+      } finally {
+        this.isGettingResult = false;
+      }
     }
   }
 };
@@ -245,7 +308,7 @@ export default {
   text-align: center;
 }
 
-.evaluation-card, .status-card {
+.evaluation-card, .status-card, .result-card, .error-card {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
@@ -265,7 +328,7 @@ export default {
   color: #333;
 }
 
-.select-input {
+.select-input, .text-input {
   width: 100%;
   padding: 12px;
   font-size: 1rem;
@@ -300,10 +363,12 @@ export default {
 
 .action-buttons {
   margin-top: 30px;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
 }
 
-.start-btn {
+.start-btn, .result-btn {
   background-color: #1976d2;
   color: white;
   border: none;
@@ -316,11 +381,19 @@ export default {
   min-width: 150px;
 }
 
-.start-btn:hover:not(:disabled) {
+.result-btn {
+  background-color: #4caf50;
+}
+
+.start-btn:hover:not(:disabled), .result-btn:hover:not(:disabled) {
   background-color: #1565c0;
 }
 
-.start-btn:disabled {
+.result-btn:hover:not(:disabled) {
+  background-color: #388e3c;
+}
+
+.start-btn:disabled, .result-btn:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
 }
@@ -376,8 +449,29 @@ export default {
   transition: width 0.5s ease;
 }
 
+.result-content {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.error-card {
+  border-left: 4px solid #f44336;
+}
+
+.error-message {
+  color: #f44336;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
-  .evaluation-card, .status-card {
+  .evaluation-card, .status-card, .result-card, .error-card {
     padding: 20px;
   }
   
@@ -395,6 +489,14 @@ export default {
   }
   
   .number-input, .range-input {
+    width: 100%;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+  
+  .start-btn, .result-btn {
     width: 100%;
   }
 }

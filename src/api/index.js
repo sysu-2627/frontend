@@ -1,6 +1,29 @@
 // 模拟API请求
 // 实际项目中应该使用axios等HTTP库进行真实的API调用
 
+import axios from 'axios';
+
+// 创建axios实例
+const apiClient = axios.create({
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// 响应拦截器
+apiClient.interceptors.response.use(
+  response => {
+    return response.data;
+  },
+  error => {
+    // 错误处理
+    console.error('API请求错误:', error.response || error);
+    return Promise.reject(error);
+  }
+);
+
 // 模拟延迟
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -52,6 +75,35 @@ export const evaluationApi = {
       progress,
       timeRemaining: progress < 100 ? `约 ${Math.ceil((100 - progress) / 10)} 分钟` : ''
     };
+  },
+  
+  // 获取评测结果的新API接口
+  async getEvaluationResult(params) {
+    try {
+      // 设置动态baseURL
+      apiClient.defaults.baseURL = params.base_url;
+      
+      const response = await apiClient.post('', {
+        api_key: params.api_key,
+        model: params.model,
+        dataset: params.dataset
+      });
+      
+      return response;
+    } catch (error) {
+      // 如果是HTTP错误(400等)
+      if (error.response) {
+        throw {
+          message: error.response.data.message || '请求失败',
+          code: error.response.data.code || error.response.status
+        };
+      }
+      // 其他错误(网络错误等)
+      throw {
+        message: error.message || '网络错误',
+        code: 500
+      };
+    }
   }
 };
 
