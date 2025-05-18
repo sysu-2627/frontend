@@ -2,6 +2,7 @@
 // 实际项目中应该使用axios等HTTP库进行真实的API调用
 
 import axios from 'axios';
+import config from '../config';
 
 // 创建axios实例
 const apiClient = axios.create({
@@ -45,11 +46,11 @@ export const evaluationApi = {
   async getDatasets() {
     await delay(500);
     return [
-      { id: 'ds1', name: 'MMLU' },
-      { id: 'ds2', name: 'HumanEval' },
-      { id: 'ds3', name: 'GSM8K' },
-      { id: 'ds4', name: 'C-Eval' },
-      { id: 'ds5', name: 'HELM' }
+      { id: 'ds1', name: 'HumanEval' },
+      { id: 'ds2', name: 'PandasEval' },
+      { id: 'ds3', name: 'NumpyEval' },
+      { id: 'ds4', name: 'PanNumEval' },
+      { id: 'ds5', name: 'RustEvo' }
     ];
   },
   
@@ -80,13 +81,19 @@ export const evaluationApi = {
   // 获取评测结果的新API接口
   async getEvaluationResult(params) {
     try {
-      // 设置动态baseURL
-      apiClient.defaults.baseURL = params.base_url;
-      
+      // 动态设置后端URL
+      apiClient.defaults.baseURL = config.apiBaseUrl;
+      // 发送POST请求
+
       const response = await apiClient.post('', {
         api_key: params.api_key,
+        base_url: params.base_url,
         model: params.model,
         dataset: params.dataset
+      }, {
+        headers: {
+          'Content-Type': 'application/json'  // 明确指定内容类型
+        }
       });
       
       return response;

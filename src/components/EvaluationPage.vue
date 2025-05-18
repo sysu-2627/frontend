@@ -12,13 +12,8 @@
       
       <div class="evaluation-card">
         <div class="form-group">
-          <label>选择评估模型</label>
-          <select v-model="selectedModel" class="select-input">
-            <option value="" disabled>请选择模型</option>
-            <option v-for="model in models" :key="model.id" :value="model.id">
-              {{ model.name }}
-            </option>
-          </select>
+          <label>评估模型</label>
+          <input type="text" v-model="selectedModel" class="text-input" placeholder="请输入模型名称" />
         </div>
         
         <div class="form-group">
@@ -118,7 +113,6 @@ export default {
       temperature: 0.7,
       evaluationStatus: null,
       evaluationResult: null,
-      models: [],
       datasets: [],
       isSubmitting: false,
       isGettingResult: false,
@@ -136,7 +130,6 @@ export default {
     }
   },
   created() {
-    this.fetchModels();
     this.fetchDatasets();
   },
   beforeDestroy() {
@@ -147,14 +140,6 @@ export default {
   methods: {
     goHome() {
       this.$router.push('/');
-    },
-    async fetchModels() {
-      try {
-        this.models = await evaluationApi.getModels();
-      } catch (error) {
-        console.error('获取模型列表失败:', error);
-        this.errorMessage = '获取模型列表失败';
-      }
     },
     async fetchDatasets() {
       try {
